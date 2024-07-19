@@ -1,12 +1,11 @@
-version: "3"
-
 services:
   portainer:
     container_name: portainer-ce
     image: portainer/portainer-ce:latest
     ports:
-      - "8000:8000"
-      - "9443:9443"
+      - "9443:9443" # https server port
+      - "9000:9000" # http server port
+      # - "8000:8000" # who want to use Portainer’s Edge compute functionality
     volumes:
       - portainer_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
