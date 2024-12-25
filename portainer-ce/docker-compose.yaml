@@ -1,7 +1,7 @@
 services:
   portainer:
     container_name: portainer-ce
-    image: portainer/portainer-ce:latest
+    image: ${REGISTRY:-}/portainer/portainer-ce:latest
     ports:
       - "9443:9443" # https server port
       - "9000:9000" # http server port
