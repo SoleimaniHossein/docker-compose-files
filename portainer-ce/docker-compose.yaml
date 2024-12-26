@@ -3,7 +3,7 @@ services:
     container_name: portainer-ce
     image: ${REGISTRY:-}/portainer/portainer-ce:latest
     ports:
-      - "9443:9443" # https server port
+      # - "9443:9443" # https server port
       - "9000:9000" # http server port
       # - "8000:8000" # who want to use Portainer’s Edge compute functionality
     volumes:

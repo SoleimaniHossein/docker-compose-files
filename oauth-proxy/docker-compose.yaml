@@ -1,0 +1,41 @@
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0-alpine
+    container_name: oauth-proxy
+    hostname: oauth2-proxy
+    command:
+      - --http-address=0.0.0.0:4180
+    environment:
+      OAUTH2_PROXY_UPSTREAMS: http://172.19.0.7:80
+
+      OAUTH2_PROXY_EMAIL_DOMAINS: '*'
+      OAUTH2_PROXY_PROVIDER: keycloak-oidc
+    # OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Keycloak
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: true
+    # OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback
+
+
+      OAUTH2_PROXY_OIDC_ISSUER_URL: http://172.19.0.12:8080/realms/sadad-realm
+
+      OAUTH2_PROXY_CLIENT_ID: sadad-client
+      OAUTH2_PROXY_CLIENT_SECRET: m62Lz582aqeGO8lLjVpgycPfCDbDAZ4Z
+
+      OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS: true
+    # OAUTH2_PROXY_OIDC_EXTRA_AUDIENCES: api://default  
+      OAUTH2_PROXY_OIDC_EMAIL_CLAIM: sub
+
+    # OAUTH2_PROXY_SET_XAUTHREQUEST: true 
+
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: true
+
+    # AUTH2_PROXY_SESSION_STORE_TYPE: redis 
+    # AUTH2_PROXY_REDIS_CONNECTION_URL: redis://redis
+
+    # OAUTH2_PROXY_COOKIE_REFRESH: 30m 
+    # OAUTH2_PROXY_COOKIE_NAME: SESSION 
+      OAUTH2_PROXY_COOKIE_SECRET: OQINaROshtE9TcZkNAm-5Zs2Pv3xaWytBmc5W7sPX8w=
+
+    ports:
+      - 4180:4180/tcp
+    networks:
+      - apisix-quickstart-net

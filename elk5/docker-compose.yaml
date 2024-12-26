@@ -1,0 +1,80 @@
+version: '2'
+services:
+  
+  elasticsearch:
+    image: elasticsearch:5.3.0
+    container_name: elasticsearch
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - xpack.watcher.enabled=false
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 2g
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - /Users/yarik/es-data1:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+      - 9300:9300
+    networks:
+      - esnet
+
+  elasticsearch2:
+    image: elasticsearch:5.3.0
+    container_name: elasticsearch2
+    environment:
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - xpack.watcher.enabled=false
+      - xpack.security.enabled=false
+      - discovery.zen.ping.unicast.hosts=elasticsearch
+      # - discovery.zen.minimum_master_nodes=1
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    mem_limit: 2g
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - /Users/yarik/es-data2:/usr/share/elasticsearch/data
+    # ports:
+    #   - 9201:9200
+    #   - 9301:9300
+    networks:
+      - esnet
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    container_name: kibana
+    image: kibana:5.3.0
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      # ELASTICSEARCH_PASSWORD: "changeme"
+      # ELASTICSEARCH_USERNAME: "elastic"
+      # SERVER_HOST: 0.0.0.0
+      XPACK_SECURITY_ENABLED: "false"
+    ports:
+      - 5601:5601
+    networks:
+      - esnet
+    depends_on:
+      - elasticsearch 
+    
+networks:
+  esnet:
+    driver: bridge
