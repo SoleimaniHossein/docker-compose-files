@@ -21,7 +21,6 @@
 
 package netzbegruenung.keycloak.authenticator.gateway;
 
-import java.io.IOException;
 import java.util.Map;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -29,8 +28,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpResponse;
 
-import org.json.JSONObject;
-import jakarta.json.Json;
 import org.jboss.logging.Logger;
 import java.util.Base64;
 import java.net.URLEncoder;
@@ -42,6 +39,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 public class ApiSmsService implements SmsService{
 
 	private final String apitokenurl;
+	private final String apitokenscope;
 	private final String apiurl;
 	private final Boolean urlencode;
 
@@ -49,21 +47,24 @@ public class ApiSmsService implements SmsService{
 	private final String apiuser;
 
 	private final String senderId;
-	private final String recieverId;
 	private final String countrycode;
 
 	private final String apitokenattribute;
 	private final String messageattribute;
+	private final String priorityattribute;
+	private final String ttlattribute;
 	private final String receiverattribute;
 	private final String senderattribute;
 
 	private final boolean hideResponsePayload;
-
+	private final String prefixToken = "Bearer ";
 	private static final Logger logger = Logger.getLogger(SmsServiceFactory.class);
 
 	ApiSmsService(Map<String, String> config) {
 		apitokenurl = config.get("apitokenurl");
+		apitokenscope = config.get("apitokenscope");
 		apiurl = config.get("apiurl");
+
 		urlencode = Boolean.parseBoolean(config.getOrDefault("urlencode", "false"));
 
 		apitoken = config.getOrDefault("apitoken", "");
@@ -71,25 +72,19 @@ public class ApiSmsService implements SmsService{
 
 		countrycode = config.getOrDefault("countrycode", "");
 		senderId = config.get("senderId");
-		recieverId = config.get("receiverId");
 
 		apitokenattribute = config.getOrDefault("apitokenattribute", "");
 		messageattribute = config.get("messageattribute");
+		priorityattribute = config.get("priorityattribute");
+		ttlattribute = config.get("ttlattribute");
 		receiverattribute = config.get("receiverattribute");
 		senderattribute = config.get("senderattribute");
 
 		hideResponsePayload = Boolean.parseBoolean(config.get("hideResponsePayload"));
 
-
-		logger.infof("api url: [%s] #/api/sms/send",apiurl);
-		logger.infof("api token: [%s] #api secret",apitoken);
-		logger.infof("api user: [%s] #basic auth",apiuser);
-		logger.infof("api token attr: [%s] #api secret token attr",apitokenattribute);
 	}
 
 	public void send(String phoneNumber, String message) {
-
-
 		phoneNumber = clean_phone_number(phoneNumber, countrycode);
 		Builder request_builder;
 		HttpRequest request = null;
@@ -98,7 +93,8 @@ public class ApiSmsService implements SmsService{
 			if (urlencode) {
 				request_builder = urlencoded_request(phoneNumber, message);
 			} else {
-				request_builder = json_request(phoneNumber, message);
+//				request_builder = json_request(phoneNumber, message);
+				request_builder = text_plain_request(phoneNumber, message,priorityattribute,ttlattribute);
 			}
 			if (!Objects.equals(apiuser, "")) {
 				request = request_builder.setHeader("Authorization", get_auth_header(apiuser, apitoken)).build();
@@ -106,12 +102,19 @@ public class ApiSmsService implements SmsService{
 				request = request_builder.build();
 			}
 			if(!Objects.equals(apitokenurl, "")){
-				request = request_builder.setHeader("Authorization", get_baam_token_header(apitokenurl,request_builder,client)).build();
+				TokenManager.API_TOKEN_URL = apitokenurl;
+				TokenManager.API_TOKEN_SCOPE = apitokenscope;
+				TokenManager.API_BASIC_AUTH_HEADER = get_auth_header(apiuser,apitoken);
+				request = request_builder.setHeader("Authorization", prefixToken + TokenManager.getAccessToken()).build();
 			}
+
+			logger.infof("info =========> request uri: %s, request bodyPublisher: %s", request,request.bodyPublisher());
+
 			HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
 			int statusCode = response.statusCode();
 			String payload = hideResponsePayload ? "redacted" : "Response: " + response.body();
+			logger.infof("info =========> status code: %s, payload size: %s", statusCode, payload.length());
 
 			if (statusCode >= 200 && statusCode < 300) {
 				logger.infof("Sent SMS to %s [%s]", phoneNumber, payload);
@@ -123,26 +126,20 @@ public class ApiSmsService implements SmsService{
 		}
 	}
 
-	private static String get_baam_token_header(String apiTokenUrl, Builder requestBuilder, HttpClient client) throws IOException, InterruptedException {
-		// Build and send the request
-		HttpRequest request = requestBuilder.uri(URI.create(apiTokenUrl)).build();
-		HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+	public Builder text_plain_request(String phoneNumber, String message,String priority, String ttl) {
+		String sendJson = "{"
+			.concat(String.format("\"%s\":\"%s\",", messageattribute, message))
+			.concat(String.format("\"%s\":\"%s\",", receiverattribute, phoneNumber))
+			.concat(String.format("\"%s\":\"%s\",", priorityattribute, priority))
+			.concat(String.format("\"%s\":\"%s\",", ttlattribute, ttl))
+			.concat("}");
 
-		// Check the status code
-		int statusCode = response.statusCode();
-		if (statusCode != 200) {
-			throw new IOException("Failed to get token. Status code: " + statusCode);
-		}
 
-		// Parse the response and extract the token field
-		String responseBody = response.body();
-
-		JSONObject jsonResponse = new JSONObject(responseBody);
-		if (jsonResponse.has("token")) {
-			return jsonResponse.getString("token");
-		} else {
-			throw new IOException("Token field not found in the response");
-		}
+		return HttpRequest.newBuilder()
+			.uri(URI.create(apiurl))
+			.header("Content-Type", "text/plain")
+			.header("Accept", "*/*")
+			.POST(HttpRequest.BodyPublishers.ofString(sendJson));
 	}
 
 	public Builder json_request(String phoneNumber, String message) {
