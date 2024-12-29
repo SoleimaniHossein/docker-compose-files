@@ -8,7 +8,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import jakarta.json.Json;
@@ -31,9 +30,9 @@ public class TokenManager {
 		TokenData cachedToken = tokenCache.get("accessToken");
 
 		// Check if cached token exists and is still valid
-		if (cachedToken != null && Instant.now().isBefore(cachedToken.getExpiry())) {
-			logger.infof("access token cached =========> %s", cachedToken.getToken());
-			return cachedToken.getToken();
+		if (cachedToken != null && Instant.now().isBefore(cachedToken.expiry())) {
+			logger.infof("access token cached =========> %s", cachedToken.token());
+			return cachedToken.token();
 		}
 
 		String formEncodedBody = "grant_type=" + URLEncoder.encode(API_TOKEN_URL_GRANT_TYPE, Charset.defaultCharset())
@@ -74,21 +73,5 @@ public class TokenManager {
 		}
 	}
 
-	private static class TokenData {
-		private final String token;
-		private final Instant expiry;
-
-		public TokenData(String token, Instant expiry) {
-			this.token = token;
-			this.expiry = expiry;
-		}
-
-		public String getToken() {
-			return token;
-		}
-
-		public Instant getExpiry() {
-			return expiry;
-		}
-	}
+	private record TokenData(String token, Instant expiry) {}
 }
