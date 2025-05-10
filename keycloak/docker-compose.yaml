@@ -17,7 +17,7 @@ services:
       KC_HTTP_MAX_POST_SIZE: 20M
       KC_LOG_LEVEL: INFO
     volumes:
-      - ./plugins/keycloak-mfa-plugins/sms-authenticator/target/sms-authenticator-v25.0.2.jar:/opt/keycloak/providers/sms-authenticator-v25.0.2.jar
+      - ./plugins/keycloak-mfa-plugins/sms-authenticator/target/sms-authenticator-v25.0.3.jar:/opt/keycloak/providers/sms-authenticator-v25.0.3.jar
       - ./standalone.xml:/opt/keycloak/standalone/configuration/standalone.xml
     command:
       - start-dev
@@ -39,15 +39,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
 
-  nginx:
-    image: nginx:latest
-    container_name: nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - keycloak
+  # nginx:
+  #   image: nginx:latest
+  #   container_name: nginx
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #   depends_on:
+  #     - keycloak
 
 volumes:
   postgres_data:
