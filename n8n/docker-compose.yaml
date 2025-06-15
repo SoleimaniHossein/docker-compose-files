@@ -1,0 +1,18 @@
+version: '3.7'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - TZ=Asia/Tehran                             # Your timezone
+      - N8N_BASIC_AUTH_ACTIVE=true                 # Enable basic auth (optional)
+      - N8N_BASIC_AUTH_USER=admin                  # Username
+      - N8N_BASIC_AUTH_PASSWORD=strongpassword     # Password
+      - N8N_HOST=n8n.local                         # Replace with your domain or IP
+      - WEBHOOK_TUNNEL_URL=https://n8n.local       # Required if behind proxy
+    volumes:
+      - ./n8n_data:/home/node/.n8n
