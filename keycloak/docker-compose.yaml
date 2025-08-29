@@ -16,6 +16,9 @@ services:
       KC_SPI_THEME_CACHE_THEMES: false
       KC_HTTP_MAX_POST_SIZE: 20M
       KC_LOG_LEVEL: INFO
+      KC_LOG_CONSOLE_OUTPUT: json
+      KC_LOG_CONSOLE_JSON_FORMAT: ecs
+      KC_LOG_LEVEL=INFO,org.keycloak.events: DEBUG
     volumes:
       - ./plugins/keycloak-mfa-plugins/sms-authenticator/target/sms-authenticator-v25.0.3.jar:/opt/keycloak/providers/sms-authenticator-v25.0.3.jar
       - ./standalone.xml:/opt/keycloak/standalone/configuration/standalone.xml

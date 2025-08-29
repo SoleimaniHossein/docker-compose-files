@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: hub.hamdocker.ir/postgres:15
+    container_name: keycloak_postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak_user
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - keycloak_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  keycloak:
+    image: hub.hamdocker.ir/keycloak/keycloak:26.3.2
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: keycloak_password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_password
+      KC_HOSTNAME: keycloak.example.com
+      KC_HTTPS_PORT: 8443
+      KC_HTTP_ENABLED: "false"
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_PROXY: edge
+      KC_FEATURES: token-exchange,organization,authorization
+      KC_LOG_LEVEL: info
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    command:
+      - start
+      # - --optimized
+      # - --db=postgres
+      - --hostname=keycloak.example.com
+      - --https-certificate-file=/opt/keycloak/certs/tls.crt
+      - --https-certificate-key-file=/opt/keycloak/certs/tls.key
+    volumes:
+      - ./certs:/opt/keycloak/certs
+    ports:
+      - 8443:8443
+    networks:
+      - keycloak_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:8443/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: keycloak_postgres_data
+
+networks:
+  keycloak_network:
+    name: keycloak_network
+    driver: bridge

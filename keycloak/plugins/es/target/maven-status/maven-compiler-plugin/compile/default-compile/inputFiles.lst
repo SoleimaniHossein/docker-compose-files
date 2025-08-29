@@ -1,0 +1,5 @@
+/home/delta/workspace/docker-compose-files/keycloak/plugins/es/src/main/java/soleimanihossein/keycloak/es/ElasticsearchConfig.java
+/home/delta/workspace/docker-compose-files/keycloak/plugins/es/src/main/java/soleimanihossein/keycloak/es/ElasticsearchEventListenerProvider.java
+/home/delta/workspace/docker-compose-files/keycloak/plugins/es/src/main/java/soleimanihossein/keycloak/es/ElasticsearchClientFactory.java
+/home/delta/workspace/docker-compose-files/keycloak/plugins/es/src/main/java/soleimanihossein/keycloak/es/ElasticsearchEventListenerProviderFactory.java
+/home/delta/workspace/docker-compose-files/keycloak/plugins/es/src/main/java/soleimanihossein/keycloak/es/EventSerializer.java
