@@ -1,0 +1,298 @@
+version: '3.8'
+
+services:
+  # ----------------- Postgres -----------------
+  db:
+    image: ${REGISTRY}/postgres:16
+    container_name: nc_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nextcloud
+      POSTGRES_DB: nextcloud
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./config/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: >
+      postgres -c config_file=/etc/postgresql/postgresql.conf
+    sysctls:
+      - net.core.somaxconn=1024
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nextcloud -d nextcloud"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------- Redis -----------------
+  redis:
+    image: ${REGISTRY}/redis:7.2-alpine
+    container_name: nc_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 1G
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    sysctls:
+      - net.core.somaxconn=1024
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------- Nextcloud 32 app (php-fpm) -----------------
+  app:
+    image: ${REGISTRY}/nextcloud:32.0-fpm
+    container_name: nc_app
+    restart: unless-stopped
+    env_file:
+      - ./env/nextcloud.env
+    volumes:
+      - nextcloud_html:/var/www/html
+      - nextcloud_data:/var/www/html/data
+      - ./config/php/php-production.ini:/usr/local/etc/php/php.ini:ro
+      - ./config/nextcloud/www.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+      - ./apps:/var/www/html/custom_apps
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:size=512M,mode=1777
+    sysctls:
+      - net.core.somaxconn=1024
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD-SHELL", "php -f /var/www/html/occ status --output=json | grep -q '\"installed\"\\s*:\\s*true'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ----------------- Nextcloud 32 cron worker -----------------
+  cron:
+    image: ${REGISTRY}/nextcloud:32.0-fpm
+    container_name: nc_cron
+    restart: unless-stopped
+    volumes:
+      - nextcloud_html:/var/www/html
+      - nextcloud_data:/var/www/html/data
+      - ./config/php/php-production.ini:/usr/local/etc/php/php.ini:ro
+      - ./apps:/var/www/html/custom_apps
+    entrypoint: /cron.sh
+    depends_on:
+      - db
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # ----------------- nginx reverse proxy -----------------
+  web:
+    image: ${REGISTRY}/nginx:1.24-alpine
+    container_name: nc_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nextcloud_html:/var/www/html:ro
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/nextcloud.conf:/etc/nginx/conf.d/nextcloud.conf:ro
+      - ./data/certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    sysctls:
+      - net.core.somaxconn=8192
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # ----------------- coturn (TURN/STUN) - High Capacity -----------------
+  coturn:
+    image: ${REGISTRY}/coturn/coturn:4.6.2
+    container_name: nc_coturn
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      - TURN_SECRET=${TURN_SHARED_SECRET}
+      - TURN_REALM=${TURN_REALM}
+    command: |
+      --no-cli
+      --no-multicast-peers
+      --fingerprint
+      --use-auth-secret
+      --static-auth-secret=${TURN_SHARED_SECRET}
+      --realm=${TURN_REALM}
+      --listening-ip=0.0.0.0
+      --external-ip=${TURN_EXTERNAL_IP}
+      --min-port=49152
+      --max-port=65535
+      --listening-port=3478
+      --tls-listening-port=5349
+      --alt-listening-port=3479
+      --alt-tls-listening-port=5350
+      --no-tls
+      --no-dtls
+      --max-allocate-lifetime=3600
+      --user-quota=12
+      --total-quota=1200
+      --no-stun
+    sysctls:
+      - net.core.somaxconn=8192
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+  # ----------------- NATS (message bus) - Clustered -----------------
+  nats:
+    image: ${REGISTRY}/nats:2.9-alpine
+    container_name: nc_nats
+    restart: unless-stopped
+    command: >
+      -js
+      -m 8222
+      --max_pending=1000000
+      --write_deadline=20s
+      --max_payload=64MB
+    volumes:
+      - nats_data:/data
+    sysctls:
+      - net.core.somaxconn=1024
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # ----------------- Janus WebRTC gateway - High Capacity -----------------
+  janus:
+    image: ${REGISTRY}/canyan/janus-gateway:0.14.1
+    container_name: nc_janus
+    restart: unless-stopped
+    environment:
+      - JANUS_ADMIN_PW=${JANUS_ADMIN_PW}
+      - TURN_SHARED_SECRETS=${TURN_SHARED_SECRET}
+    ports:
+      - "8088:8088"
+      - "7088:7088"
+      - "10000-20000:10000-20000/udp"
+    volumes:
+      - ./config/janus/janus.jcfg:/usr/local/etc/janus/janus.jcfg:ro
+      - ./config/janus/janus.transport.websockets.jcfg:/usr/local/etc/janus/janus.transport.websockets.jcfg:ro
+      - ./config/janus/janus.plugin.videoroom.jcfg:/usr/local/etc/janus/janus.plugin.videoroom.jcfg:ro
+    sysctls:
+      - net.core.somaxconn=8192
+      - net.ipv4.ip_local_port_range=10000 20000
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4.0'
+        reservations:
+          memory: 4G
+          cpus: '2.0'
+    depends_on:
+      - coturn
+
+  # ----------------- Signaling server - High Capacity -----------------
+  signaling:
+    image: ${REGISTRY}/strukturag/nextcloud-spreed-signaling:3.7.0
+    container_name: nc_signaling
+    restart: unless-stopped
+    env_file:
+      - ./env/signaling.env
+    volumes:
+      - ./config/signaling/server.conf:/config/server.conf:ro
+      - signaling_data:/data
+    sysctls:
+      - net.core.somaxconn=8192
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    depends_on:
+      nats:
+        condition: service_started
+      janus:
+        condition: service_started
+      coturn:
+        condition: service_started
+
+volumes:
+  db_data:
+    driver: local
+  redis_data:
+    driver: local
+  nextcloud_html:
+    driver: local
+  nextcloud_data:
+    driver: local
+  nats_data:
+    driver: local
+  signaling_data:
+    driver: local

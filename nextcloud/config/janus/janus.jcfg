@@ -1,0 +1,10 @@
+[general]
+configs_folder = /usr/local/etc/janus
+plugins_folder = /usr/local/lib/janus/plugins
+
+[max_handles]
+sessions = 500
+handles = 1000
+
+[media]
+rtp_port_range = 10000-10200

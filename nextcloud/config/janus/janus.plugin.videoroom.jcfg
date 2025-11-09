@@ -1,0 +1,15 @@
+[general]
+rooms = 1000
+room_events = true
+room_publishers = 100
+room_subscribers = 100
+
+[videoroom]
+max_participants = 100
+bitrate = 2048000
+fir_freq = 10
+audiocodec = opus,multiopus
+videocodec = vp9,h264
+vp9_profile = 0
+h264_profile = 42e01f
+record = true

@@ -1,0 +1,15 @@
+services:
+  nexus:
+    image: ${REGISTRY}/sonatype/nexus3:3.68.1
+    restart: unless-stopped
+    ports:
+      - "8081:8081" # Web UI / API
+      - "8082:8082" # Optional: raw repo/http access
+    volumes:
+      - nexus-data:/nexus-data
+    # environment:
+    # Increase JVM memory if needed
+    # INSTALL4J_ADD_VM_PARAMS: "-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data"
+volumes:
+  nexus-data:
+    driver: local
